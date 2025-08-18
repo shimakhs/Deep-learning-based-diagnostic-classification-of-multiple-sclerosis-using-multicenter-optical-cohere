@@ -1,4 +1,4 @@
-# CNN-Based Classification of Multiple Sclerosis Using Retinal OCT Images from scratch
+# Custom Designed Deep Neural Network  
 
 This repository contains the implementation of a Convolutional Neural Network (CNN) for the classification of Multiple Sclerosis (MS) using retinal Optical Coherence Tomography (OCT) data. The model was trained and evaluated on pre-processed OCT layer boundary maps using a K-fold cross-validation strategy.
 
