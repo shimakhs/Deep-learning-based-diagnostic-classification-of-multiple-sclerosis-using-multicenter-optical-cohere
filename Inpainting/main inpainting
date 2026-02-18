@@ -1,1 +1,211 @@
+"""
+OCT Thickness Map Inpainting Analysis
+--------------------------------------
+Author: Shima Samani
+Description:
+This script preprocesses OCT layer boundary maps,
+applies adaptive inpainting,
+and analyzes spatial differences before and after correction.
+"""
+
+import numpy as np
+import cv2
+import pickle
+from scipy import ndimage
+import matplotlib.pyplot as plt
+
+
+# =========================================================
+# Configuration
+# =========================================================
+
+HEIGHT = 60
+WIDTH = 256
+CHANNELS = [0, 1, 2]   # RNFL, GCIPL, INL
+PERCENTILE = 95
+MASK_FREQ_THRESHOLD = 0.05
+
+
+# =========================================================
+# Data Loading
+# =========================================================
+
+def load_pickle(name):
+    with open(f"{name}.pkl", "rb") as f:
+        return pickle.load(f)
+
+
+def load_data():
+    sp = load_pickle("ScanPosition")
+    X = load_pickle("XLayersBoundaryMap")
+    Y = load_pickle("HMlabels")
+
+    # Flip left eyes
+    for i in range(len(sp)):
+        if sp[i]:
+            X[i] = X[i][:, :, ::-1, :]
+
+    return X, np.array(Y).squeeze()
+
+
+# =========================================================
+# Preprocessing
+# =========================================================
+
+def preprocess_boundaries(X):
+    dataset = np.zeros((len(X), HEIGHT, WIDTH, 9))
+
+    for i, img in enumerate(X):
+        img = img.squeeze()
+        img = cv2.resize(img, (WIDTH, HEIGHT))
+
+        diff_img = np.zeros_like(img)
+
+        for k in range(img.shape[2] - 1):
+            diff_img[:, :, k] = img[:, :, k + 1] - img[:, :, k]
+
+        diff_img[:, :, -1] = img[:, :, -1] - img[:, :, 0]
+        dataset[i] = diff_img
+
+    return dataset
+
+
+def normalize_channels(dataset, channels):
+    new_data = np.zeros(
+        (len(dataset), dataset.shape[1], dataset.shape[2], len(channels))
+    )
+
+    for i in range(len(dataset)):
+        for j, ch in enumerate(channels):
+            I = dataset[i, :, :, ch]
+            new_data[i, :, :, j] = (
+                (I - I.min()) / (I.max() - I.min() + 1e-6)
+            ).astype("float32")
+
+    return new_data
+
+
+# =========================================================
+# Inpainting
+# =========================================================
+
+def inpaint_float_thickness(TM, sigma=3, perc=99):
+
+    TM = TM.astype(np.float32)
+
+    lowpass = ndimage.gaussian_filter(TM, sigma=sigma)
+    highpass = TM - lowpass
+
+    thresh = np.percentile(np.abs(highpass), perc)
+    mask = np.abs(highpass) > thresh
+
+    TM_min, TM_max = TM.min(), TM.max()
+    TM_norm = ((TM - TM_min) / (TM_max - TM_min + 1e-6) * 255).astype(np.uint8)
+
+    TM_inpaint = cv2.inpaint(
+        TM_norm,
+        (mask * 255).astype(np.uint8),
+        3,
+        cv2.INPAINT_TELEA,
+    )
+
+    TM_inpaint = TM_inpaint.astype(np.float32) / 255.0
+    TM_inpaint = TM_inpaint * (TM_max - TM_min) + TM_min
+
+    return TM, TM_inpaint, mask
+
+
+def apply_inpainting_stack(layer_maps):
+    before, after, masks = [], [], []
+
+    for i in range(layer_maps.shape[0]):
+        b, a, m = inpaint_float_thickness(layer_maps[i])
+        before.append(b)
+        after.append(a)
+        masks.append(m)
+
+    return np.array(before), np.array(after), np.array(masks)
+
+
+# =========================================================
+# Analysis
+# =========================================================
+
+def compute_difference(before, after):
+    return np.abs(after - before)
+
+
+def compute_spatial_percentage(mask, threshold=0.05):
+    return 100 * np.sum(mask > threshold) / mask.size
+
+
+def separate_groups(Y):
+    idx_hc = np.where(Y == 0)[0]
+    idx_ms = np.where(Y == 1)[0]
+    return idx_hc, idx_ms
+
+
+# =========================================================
+# Visualization
+# =========================================================
+
+def plot_mean_map(image, title, vmin=None, vmax=None):
+    plt.figure(figsize=(8, 5))
+    plt.imshow(image, cmap="jet", vmin=vmin, vmax=vmax)
+    plt.title(title)
+    plt.colorbar()
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
+
+
+# =========================================================
+# Main
+# =========================================================
+
+def main():
+
+    print("Loading data...")
+    X, Y = load_data()
+
+    print("Preprocessing...")
+    dataset = preprocess_boundaries(X)
+    dataset = normalize_channels(dataset, CHANNELS)
+
+    layer_names = ["RNFL", "GCIPL", "INL"]
+
+    for i, layer_name in enumerate(layer_names):
+
+        print(f"\nProcessing {layer_name}...")
+
+        maps = dataset[:, :, :, i]
+        before, after, masks = apply_inpainting_stack(maps)
+
+        difference = compute_difference(before, after)
+        mean_diff = np.mean(difference, axis=0)
+        mean_mask = np.mean(masks, axis=0)
+
+        plot_mean_map(
+            mean_diff,
+            f"Mean Difference Map - {layer_name}"
+        )
+
+        plot_mean_map(
+            mean_mask,
+            f"Mean Mask - {layer_name}"
+        )
+
+        spatial_percent = compute_spatial_percentage(
+            mean_mask,
+            MASK_FREQ_THRESHOLD
+        )
+
+        print(
+            f"{layer_name} inpainted region (>5% frequency): "
+            f"{spatial_percent:.2f}%"
+        )
+
+
+if __name__ == "__main__":
+    main()
 
