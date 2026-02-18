@@ -1,0 +1,36 @@
+# OCT Thickness Map Inpainting Analysis
+
+This repository provides a reproducible pipeline for preprocessing, inpainting, and quantitative analysis of retinal OCT thickness maps, with a focus on layer-wise correction and spatial characterization of inpainted regions.
+
+The method is designed for multi-layer retinal thickness representations derived from OCT boundary maps and is particularly suitable for neuro-ophthalmological studies such as Multiple Sclerosis (MS).
+
+---
+
+##  Overview
+
+Retinal OCT thickness maps may contain localized artifacts or abrupt variations due to segmentation errors, noise, or acquisition inconsistencies.  
+This project applies an **adaptive, data-driven inpainting strategy** to correct such regions while preserving physiologically meaningful structures.
+
+The pipeline includes:
+- Boundary-map preprocessing
+- Inter-layer thickness computation
+- Channel-wise normalization
+- Adaptive inpainting using high-frequency detection
+- Quantitative comparison before and after inpainting
+- Spatial frequency analysis of corrected regions
+- Group-wise analysis (Healthy Controls vs MS)
+
+---
+
+##  Key Features
+
+- Adaptive inpainting on **floating-point thickness maps**
+- High-pass residual–based anomaly detection
+- Layer-wise processing (RNFL, GCIPL, INL)
+- Spatial frequency maps of inpainted regions
+- Fully modular and reproducible code
+- Publication-ready visualization outputs
+
+---
+
+
