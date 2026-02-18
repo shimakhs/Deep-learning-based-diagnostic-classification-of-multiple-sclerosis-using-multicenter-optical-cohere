@@ -1,2 +1,2 @@
 # VISION-MS
-Visual Intelligence System for Identifying Optic Neuropathol-ogy in Multiple Sclerosis Using OCT 
+Deep learning-based diagnostic classification of multiple sclerosis using multicenter optical coherence tomography data
